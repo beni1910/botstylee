@@ -1,87 +1,43 @@
-var {
-	areJidsSameUser
-} = require('@adiwajshing/baileys');
+const FIELDS = ['level', 'exp', 'limit', 'mp', 'coin', 'ruby']
+const PAGE_SIZE = 25
 
-var leaderboards = [
-	'level',
-	'exp',
-	'limit',
-	'mp',
-	'coin',
-	'ruby'
-]
-var handler = async (m, {
-	conn,
-	args,
-	participants,
-	usedPrefix,
-	command
-}) => {
-	var users = Object.entries(db.data.users).map(([key, value]) => {
-		return {
-			...value,
-			jid: key
-		}
-	})
-	var leaderboard = leaderboards.filter(v => v && users.filter(user => user && user[v]).length)
-	var type = (args[0] || '').toLowerCase()
-	var getPage = (item) => Math.ceil((users.filter(user => user && user[item]).length) / 25)
-	var wrong = `
-Use format *${usedPrefix}${command} [type] [page]*
-example *${usedPrefix}${command} mp 1*
-
-📍 Type list
-${leaderboard.map(v => `
-${v}
-`.trim()).join('\n')}
-`.trim()
-	if (!leaderboard.includes(type)) return m.reply(wrong)
-	var page = isNumber(args[1]) ? Math.min(Math.max(parseInt(args[1]), 0), getPage(type)) : 0
-	var sortedItem = users.map(toNumber(type)).sort(sort(type))
-	var userItem = sortedItem.map(enumGetKey)
-	// var len = args[0] && args[0].length > 0 ? Math.min(100, Math.max(parseInt(args[0]), 5)) : Math.min(5, sortedExp.length)
-	var text = `
-• ${type} Leaderboard page ${page} of ${getPage(type)}* •
-You: *${userItem.indexOf(m.sender) + 1}* of *${userItem.length}*
-
-${sortedItem.slice(page * 25, page * 25 + 25).map((user, i) => `${i + 1}. ${participants.some(p => areJidsSameUser(user.jid, p.id)) ? `(${conn.getName(user.jid)}) wa.me/` : '@'}${user.jid.split`@`[0]} *${user[type]} ${type}*`).join`\n`}
-`.trim()
-	return m.reply(text, null, {
-		mentions: [...userItem.slice(page * 25, page * 25 + 25)].filter(v => !participants.some(p => areJidsSameUser(v, p.id)))
-	})
-}
-handler.help = ['leaderboard', 'lb', 'topglobal', 'toplocal'].map(v=> v + ' [type] [page] ')
-handler.tags = ['game']
-handler.command = /^(leaderboard|lb|topglobal|toplokal)$/i
-
-module.exports = handler
-
-function sort(property, ascending = true) {
-	if (property) return (...args) => args[ascending & 1][property] - args[!ascending & 1][property]
-	else return (...args) => args[ascending & 1] - args[!ascending & 1]
+const jidKey = jid => String(jid || '').split(':')[0]
+const isSameJid = (left, right) => jidKey(left) === jidKey(right)
+const numeric = value => {
+	const number = Number(value)
+	return Number.isFinite(number) ? number : 0
 }
 
-function toNumber(property, _default = 0) {
-	if (property) return (a, i, b) => {
-		return {
-			...b[i],
-			[property]: a[property] === undefined ? _default : a[property]
-		}
+const handler = async (m, { conn, args = [], participants = [], usedPrefix = '.', command = 'leaderboard' }) => {
+	const usersObject = db.data?.users || {}
+	const users = Object.entries(usersObject)
+		.filter(([jid, user]) => jid && user && typeof user === 'object')
+		.map(([jid, user]) => ({ jid, value: user }))
+	const fields = FIELDS.filter(field => users.some(user => Object.prototype.hasOwnProperty.call(user.value, field)))
+	const type = String(args[0] || '').toLowerCase()
+	if (!fields.includes(type)) {
+		return m.reply(`Format: *${usedPrefix}${command} <${fields.join('|')}> [halaman]*\nContoh: *${usedPrefix}${command} exp 1*`)
 	}
-	else return a => a === undefined ? _default : a
+
+	const sorted = users.sort((a, b) => numeric(b.value[type]) - numeric(a.value[type]) || a.jid.localeCompare(b.jid))
+	const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
+	const requested = /^\d+$/.test(String(args[1] || '')) ? Number(args[1]) : 1
+	const page = Math.min(Math.max(requested, 1), totalPages)
+	const start = (page - 1) * PAGE_SIZE
+	const current = sorted.slice(start, start + PAGE_SIZE)
+	const rank = sorted.findIndex(user => isSameJid(user.jid, m.sender))
+	const mentionJids = current.map(user => user.jid)
+	const lines = current.map((user, index) => {
+		const participant = participants.find(item => isSameJid(item.id, user.jid))
+		const name = participant ? conn.getName(user.jid) : `@${user.jid.split('@')[0]}`
+		return `${start + index + 1}. ${name} — ${numeric(user.value[type]).toLocaleString('id-ID')} ${type}`
+	})
+
+	const text = [`*Leaderboard ${type}* — halaman ${page}/${totalPages}`, `Peringkat kamu: ${rank < 0 ? 'belum tercatat' : rank + 1} dari ${sorted.length}`, '', ...lines].join('\n')
+	return m.reply(text, null, { mentions: mentionJids })
 }
 
-function enumGetKey(a) {
-	return a.jid
-}
-
-
-/**
- * Detect Number
- * @param {Number} x 
- */
-function isNumber(number) {
-	if (!number) return number
-	number = parseInt(number)
-	return typeof number == 'number' && !isNaN(number)
-}
+handler.help = ['leaderboard', 'lb', 'topglobal', 'toplocal'].map(name => `${name} <type> [halaman]`)
+handler.tags = ['game']
+handler.command = /^(leaderboard|lb|topglobal|toplocal|toplokal)$/i
+module.exports = handler

@@ -1,111 +1,75 @@
-var confirm = {}
-
-async function handler(m, {
-	conn,
-	args
-}) {
-	//if (!isROwner) throw 'Dalam perbaikan'
-	if (m.sender in confirm) throw 'Kamu masih melakukan judi, tunggu sampai selesai!!'
-	try {
-		var user = db.data.users[m.sender]
-		var count = (args[0] && number(parseInt(args[0])) ? Math.max(parseInt(args[0]), 1) : /all/i.test(args[0]) ? Math.floor(parseInt(user.mp)) : 100) * 1
-		if ((user.mp * 1) < count) return conn.reply(m.chat, 'MP kamu tidak cukup!!', m)
-		if (!(m.sender in confirm)) {
-			confirm[m.sender] = {
-				sender: m.sender,
-				count,
-				timeout: setTimeout(() => (m.reply('timed out'), delete confirm[m.sender]), 60000)
-			}
-			var txt = '⚠️Warning⚠️\n*Jangan judi karena tidak akan menang, BENERAN!!*\nApakah anda yakin (pikirkan baik-baik) mau melakukan judi (Y/n) (60s Timeout)'
-			txt += `\ntekan y untuk melanjutkan, tekan n untuk berhenti`
-			conn.reply(m.chat, txt, m)
-		}
-	} catch (e) {
-		if (m.sender in confirm) {
-			var {
-				timeout
-			} = confirm[m.sender]
-			clearTimeout(timeout)
-			delete confirm[m.sender]
-			m.reply('Rejected')
-		}
-	}
+const pending = new Map()
+const CHOICES = ['🍷', '🥃', '☄️', '🍄', '🌹', '🌷', '🎄', '🌲', '⚡', '🌬️', '💫', '🥂', '🍸', '🥤', '🧊', '♟️', '🎯', '🎮', '🛰️', '🛸', '🗿']
+const parseAmount = (value, balance) => {
+	if (/^(all|semua)$/i.test(String(value || ''))) return Math.floor(balance)
+	if (value == null || value === '') return 100
+	if (!/^\d+$/.test(String(value))) return NaN
+	return Number(value)
 }
 
-handler.before = async (m, {
-	conn
-}) => {
-	if (!(m.sender in confirm)) return
-	if (m.isBaileys) return
-	var {
-		timeout,
-		count
-	} = confirm[m.sender]
-	var tod = conn.getName(m.sender)
-	var pe = ["🍷", "🥃", "☄️", "🍄", "🌹", "🌷", "🎄", "🌲", "⚡", "🌬️", "💫", "🥂", "🍸", "🥤", "🧊", "♟️", "🎯", "🎮", "🛰️", "🛸", "🗿", "🗿", "🖲️", "💎", "🚬", "💉", "📌", "📍", "♠️", "♣️", "♥️", "♦️"]
-	var cewe = pe[Math.floor(Math.random() * pe.length)]
-	var user = db.data.users[m.sender]
-	var moneyDulu = user.mp * 1
-	var txt = (m.msg && m.msg.selectedDisplayText ? m.msg.selectedDisplayText : m.text ? m.text : '').toLowerCase()
-	try {
-		if (/^y(es|a)?$/i.test(txt)) {
-			var Bot = (Math.ceil(Math.random() * 90)) * 1
-			var Kamu = (Math.floor(Math.random() * 85)) * 1
-			var status = '\t\t\t\t\t[ LOSE!! ]'
-			var isWin = false
-			if (Bot < Kamu) {
-				user.mp += count * 2
-				status = '\t\t\t\t\t\t[ WIN!! ]'
-				isWin = true
-			} else if (Bot > Kamu) {
-				user.mp -= count * 1
-			} else {
-				status = '\t\t\t\t\t[ SERI!! ]'
-				user.mp += (Math.floor(count * 1.5)) * 1
-			}
-			conn.reply(m.chat, `‎\t\t\t\t\t[ CASINO ]
+async function handler(m, { conn, args = [] }) {
+	const user = db.data?.users?.[m.sender]
+	if (!user) return conn.reply(m.chat, 'Data pengguna belum tersedia.', m)
+	if (pending.has(m.sender)) return conn.reply(m.chat, 'Kamu masih memiliki taruhan yang menunggu konfirmasi.', m)
 
-\`\`\`${tod}:\`\`\` ${Kamu} ${cewe}
-\`\`\`Computer:\`\`\` ${Bot} ${cewe}
+	const balance = Number(user.mp) || 0
+	const amount = parseAmount(args[0], balance)
+	if (!Number.isSafeInteger(amount) || amount <= 0) return conn.reply(m.chat, 'Masukkan jumlah MP yang valid. Contoh: .judi 100 atau .judi all', m)
+	if (amount > balance) return conn.reply(m.chat, 'MP kamu tidak cukup untuk jumlah taruhan itu.', m)
 
-${status}\n\n${isWin == true ? `${tod} mendapatkan ${Number(count * 2).toLocaleString().replace(/,/g, '.')} MP\n\nlagi gak? ` : isWin == false ? `MP ${tod} Berkurang Sebanyak ${Number(count * 1).toLocaleString().replace(/,/g, '.')} MP\n\nAwokawok Kalah:v\nlagi gak?` : `${tod} mendapatkan ${Number(Math.floor(count * 1.5)).toLocaleString().replace(/,/g, '.')} MP\n\nlagi gak?`}
-    `.trim(), m)
-			clearTimeout(timeout)
-			delete confirm[m.sender]
-			return !0
-		} else if (/^no?$/i.test(txt)) {
-			clearTimeout(timeout)
-			delete confirm[m.sender]
-			m.reply('Rejected')
-			return !0
-		}
-
-	} catch (e) {
-		log(e)
-		clearTimeout(timeout)
-		delete confirm[m.sender]
-		if (moneyDulu > (user.mp * 1)) user.mp = moneyDulu * 1
-		m.reply('Error saat melakukan judi (Rejected)')
-		return !0
-	} finally {
-		clearTimeout(timeout)
-		delete confirm[m.sender]
-		return !0
-	}
+	const entry = { amount, chat: m.chat, timeout: null }
+	entry.timeout = setTimeout(() => {
+		if (pending.get(m.sender) !== entry) return
+		pending.delete(m.sender)
+		conn.reply(entry.chat, 'Konfirmasi judi kedaluwarsa; taruhan dibatalkan.', m).catch(() => {})
+	}, 60_000)
+	pending.set(m.sender, entry)
+	return conn.reply(m.chat, `⚠️ Taruhan ${amount.toLocaleString('id-ID')} MP. Ketik *y* untuk lanjut atau *n* untuk batal (60 detik).`, m)
 }
 
-handler.help = ['judi [jumlah]']
+handler.before = async function (m) {
+	const entry = pending.get(m.sender)
+	if (!entry || m.isBaileys || typeof m.text !== 'string') return false
+	const answer = (m.msg?.selectedDisplayText || m.text).trim().toLowerCase()
+	if (!/^(y|yes|ya|n|no|tidak|batal)$/i.test(answer)) return false
+
+	clearTimeout(entry.timeout)
+	pending.delete(m.sender)
+	if (/^(n|no|tidak|batal)$/i.test(answer)) {
+		await m.reply('Taruhan dibatalkan; MP tidak berubah.')
+		return true
+	}
+
+	const user = db.data?.users?.[m.sender]
+	if (!user) {
+		await m.reply('Data pengguna tidak tersedia; taruhan dibatalkan.')
+		return true
+	}
+	const balance = Number(user.mp) || 0
+	if (balance < entry.amount) {
+		await m.reply('MP kamu sudah tidak cukup; taruhan dibatalkan.')
+		return true
+	}
+
+	const player = Math.floor(Math.random() * 100)
+	const computer = Math.floor(Math.random() * 100)
+	const emoji = CHOICES[Math.floor(Math.random() * CHOICES.length)]
+	let result
+	if (player > computer) {
+		user.mp = balance + entry.amount
+		result = `MENANG! Kamu mendapat +${entry.amount.toLocaleString('id-ID')} MP.`
+	} else if (player < computer) {
+		user.mp = balance - entry.amount
+		result = `KALAH! MP kamu berkurang ${entry.amount.toLocaleString('id-ID')}.`
+	} else {
+		result = 'SERI! MP kamu tidak berubah.'
+	}
+	await this.reply(entry.chat, `[ CASINO ]\n\nKamu: ${player} ${emoji}\nKomputer: ${computer} ${emoji}\n\n${result}`, m)
+	return true
+}
+
+handler.help = ['judi <jumlah|all>']
 handler.tags = ['game']
-handler.command = /^(judi)$/i
+handler.command = /^judi$/i
 handler.level = 18
 export default handler
-
-/**
- * Detect if thats number
- * @param {Number} x 
- * @returns Boolean
- */
-function number(x = 0) {
-	x = parseInt(x)
-	return !isNaN(x) && typeof x == 'number'
-}

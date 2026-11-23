@@ -1,33 +1,32 @@
-var pilihan = ['batu', 'gunting', 'kertas']
-var Case = str => str[0].toUpperCase() + str.slice(1).toLowerCase()
-var handler = async (m, {
-	text,
-	usedPrefix
-}) => {
-	var salah = `Pilihan yang tersedia Gunting, Kertas, Batu\n\n*Contoh* : ${usedPrefix}suit gunting\n`
-	if (!text) throw salah
-	if (!pilihan.includes(text.toLowerCase())) throw salah
-	var suitP1 = pilihan.indexOf(text.toLowerCase())
-	var suitPC = Math.floor(Math.random() * 3)
-	var kamu = Case(pilihan[suitP1])
-	var bot = Case(pilihan[suitPC])
-	var state = `Kamu: ${kamu}\nBot: ${bot}`
-	var user = db.data.users[m.sender]
-	if (user.mp < 1000) throw 'MP kamu gak cukup untuk bermain game ini, di butuhkan minimal 1000 MP'
-	if (suitP1 === suitPC) {
-		user.mp += 1000
-		m.reply(`*Kita Seri*\n\n${state}\n\nPoin (±) 1000 MP`)
-	} else if ((suitP1 + 1) % 3 === suitPC) {
-		user.mp += 1500
-		m.reply(`*Kamu Menang*\n\n${state}\n\nPoin (+)1500 MP`)
-	} else if ((suitP1 - 1) % 3 === suitPC) {
-		user.mp -= 900
-		m.reply(`*Kamu Kalah*\n\n${state}\n\nPoin (-)900 MP`)
-	} else throw 'Terjadi kesalahan'
+const choices = ['batu', 'gunting', 'kertas']
+const beats = { batu: 'gunting', gunting: 'kertas', kertas: 'batu' }
+const label = value => value[0].toUpperCase() + value.slice(1)
+
+const handler = async (m, { text = '', usedPrefix = '.' }) => {
+	const choice = text.trim().toLowerCase()
+	if (!choices.includes(choice)) {
+		return m.reply(`Pilihan: batu, gunting, atau kertas.\nContoh: *${usedPrefix}suit batu*`)
+	}
+	const user = db.data?.users?.[m.sender]
+	if (!user) return m.reply('Data pengguna belum tersedia.')
+	const balance = Number(user.mp) || 0
+	const stake = 1000
+	if (balance < stake) return m.reply(`MP tidak cukup. Minimal saldo untuk bermain: ${stake} MP.`)
+
+	const computer = choices[Math.floor(Math.random() * choices.length)]
+	if (choice === computer) {
+		return m.reply(`*Seri!*\nKamu: ${label(choice)}\nBot: ${label(computer)}\nMP tidak berubah.`)
+	}
+	if (beats[choice] === computer) {
+		user.mp = balance + 1500
+		return m.reply(`*Kamu menang!*\nKamu: ${label(choice)}\nBot: ${label(computer)}\nHadiah: +1.500 MP.`)
+	}
+	user.mp = Math.max(0, balance - 900)
+	return m.reply(`*Kamu kalah.*\nKamu: ${label(choice)}\nBot: ${label(computer)}\nMP berkurang 900.`)
 }
-handler.help = ['suit [gunting|batu|kertas]']
+
+handler.help = ['suit <gunting|batu|kertas>']
 handler.tags = ['game']
 handler.level = 15
 handler.command = /^suit$/i
-
 export default handler
