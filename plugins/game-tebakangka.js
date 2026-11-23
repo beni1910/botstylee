@@ -1,81 +1,55 @@
-function generateRandomNumber(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+const TIMEOUT_MS = 60_000
+const LEVELS = {
+	normal: { min: 1, max: 10, reward: 400 },
+	hard: { min: 1, max: 20, reward: 1500 },
+	extreme: { min: 1, max: 30, reward: 3000 },
+	crazy: { min: 1, max: 50, reward: 5000 }
 }
-var timeout = 60000
-var handler = async (m, {
-	conn,
-	text
-}) => {
-	conn.tebakangka = conn.tebakangka ? conn.tebakangka : {}
-	var id = m.sender
-	var an = [{
-		level: 'normal',
-		min: 1,
-		max: 10,
-		reward: 400
-		}, {
-		level: 'hard',
-		min: 1,
-		max: 20,
-		reward: 1500
-		}, {
-		level: 'extreme',
-		min: 1,
-		max: 30,
-		reward: 3000
-		}, {
-		level: 'crazy',
-		min: 1,
-		max: 50,
-		reward: 5000
-		}]
-	if (id in conn.tebakangka) {
-		conn.reply(m.chat, 'Selesaikan permainanmu dulu sebelum memulai permainan baru', conn.tebakangka[id].msg)
-		throw false
-	}
-	var min, max, reward, lvl
-	if (text && an.find(v=> v.level.toLowerCase() == text.toLowerCase())) {
-		min = an.find(v=> v.level.toLowerCase() == text.toLowerCase()).min
-		max = an.find(v=> v.level.toLowerCase() == text.toLowerCase()).max
-		reward = an.find(v=> v.level.toLowerCase() == text.toLowerCase()).reward
-		lvl = an.find(v=> v.level.toLowerCase() == text.toLowerCase()).level
-	} else {
-		min = an.find(v=> v.level.toLowerCase() == 'normal').min
-		max = an.find(v=> v.level.toLowerCase() == 'normal').max
-		reward = an.find(v=> v.level.toLowerCase() == 'normal').reward
-		lvl = 'normal'
-	}
-	var json = {
-		target: generateRandomNumber(min, max),
+
+const handler = async (m, { conn, text = '' }) => {
+	conn.tebakangka = conn.tebakangka && typeof conn.tebakangka === 'object' ? conn.tebakangka : {}
+	const id = m.sender
+	const current = conn.tebakangka[id]
+	if (current) return conn.reply(m.chat, 'Selesaikan permainan tebak angka yang sedang berjalan terlebih dahulu.', current.msg || m)
+
+	const requested = String(text).trim().toLowerCase() || 'normal'
+	const level = LEVELS[requested]
+	if (!level) return conn.reply(m.chat, `Level tidak tersedia. Pilih: ${Object.keys(LEVELS).join(', ')}.`, m)
+
+	const json = {
+		target: Math.floor(Math.random() * (level.max - level.min + 1)) + level.min,
 		attempt: 4,
-		min, max, level: lvl, reward
+		min: level.min,
+		max: level.max,
+		level: requested,
+		reward: level.reward
 	}
-	var anu = `*[ t e b a k - a n g k a ]*
+	const caption = [
+		'*[ TEBAK ANGKA ]*',
+		'Silakan tebak angka yang dipikirkan bot.',
+		`Petunjuk angka: ${json.min}–${json.max}`,
+		`Level: ${json.level} | Hadiah: ${json.reward} MP`,
+		'Kesempatan: 4 | Waktu: 60 detik',
+		'Kirim angka sebagai pesan biasa atau ketik *nyerah*.'
+	].join('\n')
 
-🎋Silahkan Tebak angka yang sedang di pikirkan Bot.
-
-*[ clue ]* => ${min} - ${max}
-*[ timeout ]* => ${(timeout / 1000).toFixed(2)} detik
-*[ level ]* => ${lvl}
-*[ hadiah ]* => ${reward} MP
-`
-	conn.tebakangka[id] = {
-		msg: await conn.reply(m.chat, anu, m),
-		json,
-		poin: reward,
-		tot: setTimeout(() => {
-			if (conn.tebakangka[id]) conn.reply(m.chat, `*[ t i m e o u t ]*
-
-🎋 *kamu kalah*
-
-*[ angka bot ]* => ${json.target}
-Ayo coba lagi🧢`, conn.tebakangka[id].msg)
+	const session = { json, poin: json.reward, chat: m.chat, msg: null, tot: null }
+	conn.tebakangka[id] = session
+	try {
+		session.msg = await conn.reply(m.chat, caption, m)
+		session.tot = setTimeout(async () => {
+			if (conn.tebakangka?.[id] !== session) return
 			delete conn.tebakangka[id]
-		}, timeout)
+			await conn.reply(session.chat, `Waktu habis. Angka yang benar: *${json.target}*`, session.msg || m).catch(error => conn.logger?.error?.({ err: error }, 'Tebak angka timeout reply failed'))
+		}, TIMEOUT_MS)
+		return session.msg
+	} catch (error) {
+		delete conn.tebakangka[id]
+		throw error
 	}
 }
 
-handler.help = handler.command = ['tebakangka']
+handler.help = ['tebakangka [normal|hard|extreme|crazy]']
 handler.tags = ['game']
-
+handler.command = /^tebakangka$/i
 export default handler

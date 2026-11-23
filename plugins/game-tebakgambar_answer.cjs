@@ -1,58 +1,37 @@
-var similarity = require('similarity')
-var threshold = 0.72
-var handler = m => m
-handler.before = async function(m) {
-	var id = m.chat
-	if (!m.quoted || !m.quoted.fromMe || !m.quoted.isBaileys || !/Ketik.*hint/i.test(m.quoted.text))
-		return !0
-	this.tebakgambar = this.tebakgambar ? this.tebakgambar : {}
-	if (!(id in this.tebakgambar))
-		return conn.sendButton(m.chat, 'Soal itu telah berakhir', author, null, buttonTebakgambar, m)
-	if (m.quoted.id == this.tebakgambar[id][0].id) {
-		var isSurrender = /^((me)?nyerah|surr?ender)$/i.test(m.text)
-		if (isSurrender) {
-			clearTimeout(this.tebakgambar[id][3])
-			delete this.tebakgambar[id]
-			return conn.sendButton(m.chat, '*Yah Menyerah :( !*', author, null, buttonTebakgambar, m)
-		}
-		var json = JSON.parse(JSON.stringify(this.tebakgambar[id][1]))
-		// m.reply(JSON.stringify(json, null, '\t'))
-		if (m.text.toLowerCase() == json.jawaban.toLowerCase().trim()) {
-			db.data.users[m.sender].exp += this.tebakgambar[id][2]
-			conn.sendButton(m.chat, `*Benar!*\n+${this.tebakgambar[id][2]} XP`, author, null, buttonTebakgambar, m)
-			clearTimeout(this.tebakgambar[id][3])
-			delete this.tebakgambar[id]
-		} else if (similarity(m.text.toLowerCase(), json.jawaban.toLowerCase().trim()) >= threshold)
-			m.reply(`*Dikit Lagi!*`)
-		else
-			conn.sendButton(m.chat, `*Salah!*`, author, null, [
-				['hint', '/hint'],
-				['nyerah', 'menyerah']
-			], m)
+const similarity = require('similarity')
+const THRESHOLD = 0.72
+const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, ' ').replace(/\s+/g, ' ').trim()
+
+const handler = m => m
+handler.before = async function (m) {
+	if (!m || typeof m.text !== 'string' || !m.text.trim()) return false
+	const session = this.tebakgambar?.[m.chat]
+	if (!Array.isArray(session) || !session[0]?.key?.id || typeof session[1]?.jawaban !== 'string') return false
+	const surrender = /^(nyerah|menyerah|surrender)$/i.test(m.text.trim())
+	const quotedId = m.quoted?.id || m.quoted?.key?.id
+	if (!surrender && quotedId !== session[0].key.id) return false
+
+	if (surrender) {
+		clearTimeout(session[3])
+		delete this.tebakgambar[m.chat]
+		await this.sendButton(m.chat, `Kamu menyerah. Jawabannya: *${session[1].jawaban}*`, global.author || '', null, [['Main lagi', `${session[4] || '.'}tebakgambar`]], m)
+		return true
 	}
 
-	// var isSurrender = /^((me)?nyerah|surr?ender)$/i.test(m.text)
-	// if (isSurrender) {
-	//     clearTimeout(this.tebakgambar[id][3])
-	//     delete this.tebakgambar[id]
-	//     return conn.sendButton(m.chat, '*Yah Menyerah :( !*', author, null, buttonTebakgambar, m)
-	// }
-	// var json = JSON.parse(JSON.stringify(this.tebakgambar[id][1]))
-	// // m.reply(JSON.stringify(json, null, '\t'))
-	// if (m.text.toLowerCase() == json.jawaban.toLowerCase().trim()) {
-	//     db.data.users[m.sender].exp += this.tebakgambar[id][2]
-	//     conn.sendButton(m.chat, `*Benar!*\n+${this.tebakgambar[id][2]} XP`, author, null, buttonTebakgambar, m)
-	//     clearTimeout(this.tebakgambar[id][3])
-	//     delete this.tebakgambar[id]
-	// } else if (similarity(m.text.toLowerCase(), json.jawaban.toLowerCase().trim()) >= threshold) m.reply(`*Dikit Lagi!*`)
-	// else if (m.quoted.id == this.tebakgambar[id][0].id) conn.sendButton(m.chat, `*Salah!*`, author, null, [
-	//     ['hint', '/hint'],
-	//     ['nyerah', 'menyerah']
-	// ], m)
-	return !0
+	const answer = normalize(m.text)
+	const expected = normalize(session[1].jawaban)
+	if (answer === expected) {
+		clearTimeout(session[3])
+		delete this.tebakgambar[m.chat]
+		const user = global.db?.data?.users?.[m.sender]
+		if (user) user.exp = (Number(user.exp) || 0) + (Number(session[2]) || 0)
+		await this.sendButton(m.chat, `*Benar!*\nHadiah: +${Number(session[2]) || 0} XP`, global.author || '', null, [['Main lagi', `${session[4] || '.'}tebakgambar`]], m)
+	} else if (typeof similarity === 'function' && similarity(answer, expected) >= THRESHOLD) {
+		await m.reply('*Dikit lagi!*')
+	} else {
+		await m.reply('*Jawaban belum tepat.*')
+	}
+	return true
 }
-module.exports = handler
 
-var buttonTebakgambar = [
-	['tebakgambar', '/tebakgambar']
-]
+module.exports = handler

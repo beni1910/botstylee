@@ -1,58 +1,44 @@
-var handler = m => m
-handler.before = async function(m) {
-	var id = m.sender
-	if (!m.text)
-		return !0
-	conn.tebakangka = conn.tebakangka ? conn.tebakangka : {}
-	if (!(id in conn.tebakangka))
-		return !0 //conn.reply(m.chat, 'Soal itu telah berakhir', m)
-	if (m.sender in conn.tebakangka && !isNaN(m.text)) {
-		var isSurrender = /^((me)?nyerah|surr?ender)$/i.test(m.text)
-		if (isSurrender) {
-			clearTimeout(conn.tebakangka[id].tot)
-			delete conn.tebakangka[id]
-			return conn.reply(m.chat, '*Yah Menyerah :( !*', m)
-		}
-		var json = JSON.parse(JSON.stringify(conn.tebakangka[id].json))
-		// m.reply(JSON.stringify(json, null, '\t'))
-		if (m.text == json.target) {
-			db.data.users[m.sender].mp += conn.tebakangka[id].poin
-			conn.reply(m.chat, `*[ m e n a n g ]*
+const handler = m => m
+handler.before = async function (m) {
+	if (!m || typeof m.text !== 'string') return false
+	this.tebakangka = this.tebakangka && typeof this.tebakangka === 'object' ? this.tebakangka : {}
+	const session = this.tebakangka[m.sender]
+	if (!session || session.chat !== m.chat) return false
 
-🧢 *kamu berhasil menebak angka yang di pikirkan bot*
-
-*[ angka bot ]* => ${json.target}
-*[ hadiah ]* => ${conn.tebakangka[id].poin} MP
-Ayo main lagi🥶`, m)
-			clearTimeout(conn.tebakangka[id].tot)
-			delete conn.tebakangka[id]
-		} else if (--conn.tebakangka[id].json.attempt == 0) {
-			m.reply(`*[ l o s e ]*
-
-🧢 *No more attempts left*
-*[ angka bot ]* => ${json.target}
-Ayo main lagi🧢`)
-			clearTimeout(conn.tebakangka[id].tot)
-			delete conn.tebakangka[id]
-		} else {
-			if (m.text > json.target) {
-				m.reply(`*[ w r o n g ]*
-
-🧢 *tebakanmu terlalu tinggi*
-
-*[ remaining attempts ]* => ${conn.tebakangka[id].json.attempt}
-Ayo tebak lagi🧢`)
-			} else {
-				m.reply(`*[ w r o n g ]*
-
-🧢 *tebakanmu terlalu rendah*
-
-*[ remaining attempts ]* => ${conn.tebakangka[id].json.attempt}
-Ayo tebak lagi🧢`)
-			}
-		}
+	const text = m.text.trim()
+	if (/^(nyerah|menyerah|surrender)$/i.test(text)) {
+		clearTimeout(session.tot)
+		delete this.tebakangka[m.sender]
+		await this.reply(m.chat, `Kamu menyerah. Angka yang benar: *${session.json.target}*`, m)
+		return true
 	}
-	return !0
+	if (!/^\d+$/.test(text)) return false
+
+	const guess = Number(text)
+	if (!Number.isSafeInteger(guess)) {
+		await m.reply('Masukkan angka bulat yang valid.')
+		return true
+	}
+	const game = session.json
+	if (guess === game.target) {
+		clearTimeout(session.tot)
+		delete this.tebakangka[m.sender]
+		const user = global.db?.data?.users?.[m.sender]
+		if (user) user.mp = (Number(user.mp) || 0) + (Number(session.poin) || 0)
+		await this.reply(m.chat, `*[ MENANG ]*\nTebakanmu benar: *${game.target}*\nHadiah: *${Number(session.poin) || 0} MP*`, m)
+		return true
+	}
+
+	game.attempt = Math.max(0, (Number(game.attempt) || 0) - 1)
+	if (game.attempt === 0) {
+		clearTimeout(session.tot)
+		delete this.tebakangka[m.sender]
+		await this.reply(m.chat, `Kesempatan habis. Angka yang benar: *${game.target}*`, m)
+	} else {
+		const hint = guess > game.target ? 'Tebakanmu terlalu tinggi.' : 'Tebakanmu terlalu rendah.'
+		await m.reply(`${hint}\nSisa kesempatan: ${game.attempt}.`)
+	}
+	return true
 }
 
 export default handler

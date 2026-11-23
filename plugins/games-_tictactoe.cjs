@@ -1,98 +1,61 @@
-var {
-	format
-} = require('util');
+const WIN_BONUS = 2000
+const PLAY_BONUS = 1000
+const MOVE = /^([1-9]|nyerah|menyerah|surrender)$/i
 
-var debugMode = !1
+const handler = m => m
+handler.before = async function (m) {
+	if (!m || typeof m.text !== 'string') return false
+	const text = m.text.trim().toLowerCase()
+	if (!MOVE.test(text)) return false
 
-var winScore = 4999
-var playScore = 99
+	this.game = this.game && typeof this.game === 'object' ? this.game : {}
+	const room = Object.values(this.game).find(candidate => candidate?.id?.startsWith('tictactoe-') && candidate.state === 'PLAYING' && candidate.game && [candidate.game.playerX, candidate.game.playerO].includes(m.sender))
+	if (!room) return false
 
-module.exports = {
-	async before(m) {
-		var ok
-		var isWin = !1
-		var isTie = !1
-		var isSurrender = !1
-		this.game = this.game ? this.game : {}
-		var room = Object.values(this.game).find(room => room.id && room.game && room.state && room.id.startsWith('tictactoe') && [room.game.playerX, room.game.playerO].includes(m.sender) && room.state == 'PLAYING')
-		if (room) {
-			// m.reply(`[DEBUG]\n${parseInt(m.text)}`)
-			if (!/^([1-9]|(me)?nyerah|surr?ender)$/i.test(m.text))
-				return !0
-			isSurrender = !/^[1-9]$/.test(m.text)
-			if (m.sender !== room.game.currentTurn) { // nek wayahku
-				if (!isSurrender)
-					return !0
-			}
-			if (debugMode)
-				m.reply('[DEBUG]\n' + require('util').format({
-					isSurrender,
-					text: m.text
-				}))
-			if (!isSurrender && 1 > (ok = room.game.turn(m.sender === room.game.playerO, parseInt(m.text) - 1))) {
-				m.reply({
-					'-3': 'Game telah berakhir',
-					'-2': 'Invalid',
-					'-1': 'Posisi Invalid',
-					0: 'Posisi Invalid',
-				} [ok])
-				return !0
-			}
-			if (m.sender === room.game.winner)
-				isWin = true
-			else if (room.game.board === 511)
-				isTie = true
-			var arr = room.game.render().map(v => {
-				return {
-					X: '❌',
-					O: '⭕',
-					1: '1️⃣',
-					2: '2️⃣',
-					3: '3️⃣',
-					4: '4️⃣',
-					5: '5️⃣',
-					6: '6️⃣',
-					7: '7️⃣',
-					8: '8️⃣',
-					9: '9️⃣',
-				} [v]
-			})
-			if (isSurrender) {
-				room.game._currentTurn = m.sender === room.game.playerX
-				isWin = true
-			}
-			var winner = isSurrender ? room.game.currentTurn : room.game.winner
-			var str = `
-${arr.slice(0, 3).join('')}
-${arr.slice(3, 6).join('')}
-${arr.slice(6).join('')}
-${isWin ? `@${winner.split('@')[0]} Menang! (+${winScore} XP)` : isTie ? `Game berakhir (+${playScore} XP)` : `Giliran ${['❌', '⭕'][1 * room.game._currentTurn]} (@${room.game.currentTurn.split('@')[0]})`}
-❌: @${room.game.playerX.split('@')[0]}
-⭕: @${room.game.playerO.split('@')[0]}
-Ketik *nyerah* untuk nyerah
-Room ID: ${room.id}
-`.trim()
-			var users = global.db.data.users
-			if ((room.game._currentTurn ^ isSurrender ? room.x : room.o) !== m.chat)
-				room[room.game._currentTurn ^ isSurrender ? 'x' : 'o'] = m.chat
-			var btn = isTie ? ['TicTacToe', '/ttt'] : ['Nyerah', 'nyerah']
-			if (room.x !== room.o)
-				await this.sendButton(room.x, str, author, btn, m, {
-					mentions: this.parseMention(str)
-				})
-			await this.sendButton(room.o, str, author, btn, m, {
-				mentions: this.parseMention(str)
-			})
-			if (isTie || isWin) {
-				users[room.game.playerX].exp += playScore
-				users[room.game.playerO].exp += playScore
-				if (isWin)
-					users[winner].exp += winScore - playScore
-				if (debugMode)
-					m.reply('[DEBUG]\n' + format(room))
-				delete this.game[room.id]
-			}
-		}
-		return !0
+	const playerX = room.game.playerX
+	const playerO = room.game.playerO
+	const isSurrender = !/^[1-9]$/.test(text)
+	if (!isSurrender && m.sender !== room.game.currentTurn) {
+		await m.reply('Belum giliranmu.')
+		return true
 	}
+
+	let winner = null
+	let isTie = false
+	if (isSurrender) {
+		winner = m.sender === playerX ? playerO : playerX
+	} else {
+		const result = room.game.turn(m.sender === playerO, Number(text) - 1)
+		if (result !== 1) {
+			const errors = { '-3': 'Game sudah berakhir.', '-2': 'Bukan giliranmu.', '-1': 'Posisi tidak valid.', 0: 'Kotak itu sudah terisi.' }
+			await m.reply(errors[result] || 'Langkah tidak valid.')
+			return true
+		}
+		if (room.game.winner) winner = room.game.winner
+		else if (room.game.turns >= 9) isTie = true
+	}
+
+	const symbols = { X: '❌', O: '⭕', 1: '1️⃣', 2: '2️⃣', 3: '3️⃣', 4: '4️⃣', 5: '5️⃣', 6: '6️⃣', 7: '7️⃣', 8: '8️⃣', 9: '9️⃣' }
+	const cells = room.game.render().map(value => symbols[value] || '⬜')
+	const board = `${cells.slice(0, 3).join('')}\n${cells.slice(3, 6).join('')}\n${cells.slice(6).join('')}`
+
+	if (winner || isTie) {
+		clearTimeout(room.waitTimeout)
+		clearTimeout(room.turnTimeout)
+		room.state = 'ENDED'
+		const users = global.db?.data?.users || {}
+		for (const jid of [playerX, playerO]) if (users[jid]) users[jid].exp = (Number(users[jid].exp) || 0) + PLAY_BONUS
+		if (winner && users[winner]) users[winner].exp = (Number(users[winner].exp) || 0) + WIN_BONUS
+	}
+
+	const status = winner ? `Pemenang: @${winner.split('@')[0]} (+${PLAY_BONUS + WIN_BONUS} XP).` : isTie ? `Seri! Kedua pemain mendapat +${PLAY_BONUS} XP.` : `Giliran @${room.game.currentTurn.split('@')[0]}.`
+	const output = `${board}\n\n${status}\n❌ @${playerX.split('@')[0]}\n⭕ @${playerO.split('@')[0]}${winner || isTie ? '' : '\nKetik *nyerah* untuk menyerah.'}\nRoom: ${room.id}`
+	const mentions = [playerX, playerO, ...(winner ? [winner] : !isTie ? [room.game.currentTurn] : [])]
+	for (const chat of new Set([room.x, room.o].filter(Boolean))) {
+		await this.sendMessage(chat, { text: output, mentions }, { quoted: m }).catch(error => this.logger?.error?.({ err: error }, 'Gagal mengirim papan Tic-Tac-Toe'))
+	}
+	if (winner || isTie) delete this.game[room.id]
+	return true
 }
+
+module.exports = handler
