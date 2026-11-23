@@ -1,45 +1,31 @@
-var levelling = require('../lib/levelling.cjs')
-var handler = async (m, {
-	conn,
-	usedPrefix
-}) => {
-	var paus = db.data.users[m.sender].paus
-	var kepiting = db.data.users[m.sender].kepiting
-	var gurita = db.data.users[m.sender].gurita
-	var cumi = db.data.users[m.sender].cumi
-	var buntal = db.data.users[m.sender].buntal
-	var dory = db.data.users[m.sender].dory
-	var lumba = db.data.users[m.sender].lumba
-	var lobster = db.data.users[m.sender].lobster
-	var hiu = db.data.users[m.sender].hiu
-	var udang = db.data.users[m.sender].udang
-	var ikan = db.data.users[m.sender].ikan
-	var orca = db.data.users[m.sender].orca
+const fish = [
+	['🦀', 'kepiting', 'Kepiting'],
+	['🦞', 'lobster', 'Lobster'],
+	['🦐', 'udang', 'Udang'],
+	['🦑', 'cumi', 'Cumi'],
+	['🐙', 'gurita', 'Gurita'],
+	['🐡', 'buntal', 'Buntal'],
+	['🐠', 'dory', 'Dory'],
+	['🐟', 'ikan', 'Ikan'],
+	['🐬', 'lumba', 'Lumba-lumba'],
+	['🐳', 'paus', 'Paus'],
+	['🦈', 'hiu', 'Hiu'],
+	['🐋', 'orca', 'Orca']
+]
 
-	var ndy = `
-*《 KOLAM MU 》*
+const handler = async (m, { conn }) => {
+	const user = global.db?.data?.users?.[m.sender]
+	if (!user) return conn.reply(m.chat, 'Data pengguna belum tersedia. Coba lagi sebentar.', m)
 
-*➡️   ️ 🦀 = [ ${kepiting} ] Ekor Kepiting*
-*➡️   ️ 🦞 = [ ${lobster} ] Ekor Lobster*
-*➡️   ️ 🦐 = [ ${udang} ] Ekor Udang*
-*➡️   ️ 🦑 = [ ${cumi} ] Ekor Cumi*
-*➡️   ️ 🐙 = [ ${gurita} ] Ekor Gurita*
-*➡️   ️ 🐡 = [ ${buntal} ] Ekor Buntal*
-*➡️   ️ 🐠 = [ ${dory} ] Ekor Dory*
-*➡️   ️ 🐟 = [ ${orca} ] Ekor Orca*
-*➡️   ️ 🐬 = [ ${lumba} ] Ekor Lumba* 
-*➡️   ️ 🐳 = [ ${paus} ] Ekor Paus*
-*➡️   ️ 🦈 = [ ${hiu} ] Ekor Hiu*
-
- *${author}*
- `.trim()
-	conn.reply(m.chat, ndy, m)
+	const inventory = fish
+		.map(([emoji, key, label]) => `➡️ ${emoji} = [ ${Number(user[key]) || 0} ] ekor ${label}`)
+		.join('\n')
+	const message = `*《 KOLAM MU 》*\n\n${inventory}\n\n*${global.author || ''}*`
+	return conn.reply(m.chat, message, m)
 }
+
 handler.help = ['kolam']
 handler.customPrefix = ['kolam']
 handler.command = new RegExp
 
 module.exports = handler
-
-var more = String.fromCharCode(8206)
-var readMore = more.repeat(4001)
