@@ -1,16 +1,16 @@
-var handler = async (m, {
-	conn
-}) => {
-	conn.tebakkata = conn.tebakkata ? conn.tebakkata : {}
-	var id = m.chat
-	if (!(id in conn.tebakkata)) throw false
-	var json = conn.tebakkata[id][1]
-	var ans = json.jawaban.trim()
-	var clue = ans.replace(/[AIUEO]/gi, '_')
-	m.reply('```' + clue + '```')
+const handler = async (m, { conn }) => {
+	const session = conn.tebakkata?.[m.chat]
+	if (!Array.isArray(session) || typeof session[1]?.jawaban !== 'string') {
+		return conn.reply(m.chat, 'Tidak ada soal Tebak Kata yang aktif di chat ini.', m)
+	}
+
+	const answer = session[1].jawaban.trim()
+	const clue = [...answer].map((char, index) => /[aiueo]/i.test(char) && index % 2 === 0 ? '_' : char).join('')
+	return conn.reply(m.chat, `Petunjuk: ${clue}`, m)
 }
+
+handler.help = ['teka']
+handler.tags = ['game']
 handler.command = /^teka$/i
-
 handler.limit = true
-
 module.exports = handler
