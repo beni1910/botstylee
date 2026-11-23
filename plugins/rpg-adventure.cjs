@@ -1,82 +1,43 @@
-var cooldown = 300000
-var handler = async (m, {
-	usedPrefix
-}) => {
-	var user = db.data.users[m.sender]
-	var timers = (cooldown - (new Date - user.lastadventure))
-	if (user.health < 80) return m.reply(`
-Requires at least 80 ❤️Healths for the adventure!!
-please buy ❤️Healths first by typing *${usedPrefix}buy potion <quantity>*,
-and type *${usedPrefix}heal <quantity>* to use potions
-`.trim())
-	if (new Date - user.lastadventure <= cooldown) return m.reply(`
-You're already adventure!!, please wait *🕐${timers.toTimeString()}*
-`.trim())
-	var rewards = reward(user)
-	var text = 'you\'ve been adventure and lost'
-	for (var lost in rewards.lost)
-		if (user[lost]) {
-			var total = rewards.lost[lost].getRandom()
-			user[lost] -= total * 1
-			if (total) text += `\n*${global.rpg.emoticon(lost)}${lost}:* ${total}`
-		}
-	text += '\n\nBut you got'
-	for (var rewardItem in rewards.reward)
-		if (rewardItem in user) {
-			var total = rewards.reward[rewardItem].getRandom()
-			user[rewardItem] += total * 1
-			if (total) text += `\n*${global.rpg.emoticon(rewardItem)}${rewardItem}:* ${total}`
-		}
-	m.reply(text.trim())
-	user.lastadventure = new Date * 1
+const COOLDOWN_MS = 5 * 60 * 1000
+const MIN_HEALTH = 80
+const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min
+const EMOJI = { money: '💵 ', exp: '✨ ', trash: '🗑️ ', potion: '🧪 ', rock: '🪨 ', wood: '🪵 ', string: '🧵 ', common: '📦 ', uncommon: '🛍️ ', mythic: '🎁 ', legendary: '🏆 ', iron: '⛓️ ', gold: '🪙 ', diamond: '💎 ' }
+const rewardRanges = { money: [100, 500], exp: [100, 600], trash: [0, 20], potion: [0, 2], rock: [0, 3], wood: [0, 3], string: [0, 2], common: [0, 2], uncommon: [0, 1], mythic: [0, 1], legendary: [0, 1], iron: [0, 2], gold: [0, 1], diamond: [0, 1] }
+
+const handler = async (m, { usedPrefix = '.' }) => {
+	const user = db.data?.users?.[m.sender]
+	if (!user) return m.reply('Data pemain belum tersedia. Coba lagi sebentar.')
+	const now = Date.now()
+	const last = Number(user.lastadventure) || 0
+	const remaining = COOLDOWN_MS - (now - last)
+	if (remaining > 0) return m.reply(`Kamu masih kelelahan. Coba lagi dalam *${Math.ceil(remaining / 60000)} menit*.`)
+	const health = Number(user.health) || 0
+	if (health < MIN_HEALTH) return m.reply(`Petualangan membutuhkan minimal ${MIN_HEALTH} ❤️. Pulihkan health dengan *${usedPrefix}heal* terlebih dahulu.`)
+
+	const rewards = []
+	for (const [item, [min, max]] of Object.entries(rewardRanges)) {
+		const amount = randomInt(min, max)
+		if (amount <= 0) continue
+		user[item] = (Number(user[item]) || 0) + amount
+		rewards.push(`${EMOJI[item] || ''}${item}: +${amount}`)
+	}
+
+	const catLevel = Math.max(0, Number(user.cat) || 0)
+	const damage = Math.max(5, randomInt(10, 25) - Math.min(10, catLevel * 2))
+	user.health = Math.max(0, health - damage)
+	const armorDamage = Math.min(Math.max(0, Number(user.armordurability) || 0), randomInt(0, 10))
+	if (armorDamage) user.armordurability -= armorDamage
+	user.lastadventure = now
+
+	return m.reply([
+		'*Petualangan selesai!*',
+		`Health: -${damage} (tersisa ${user.health})${armorDamage ? `\nDurability armor: -${armorDamage}` : ''}`,
+		rewards.length ? `\nHasil petualangan:\n${rewards.join('\n')}` : '\nKali ini kamu tidak menemukan barang.'
+	].join('\n'))
 }
+
 handler.help = ['adventure', 'petualang', 'berpetualang', 'mulung']
 handler.tags = ['rpg']
 handler.command = /^(adventure|(ber)?petualang(ang)?|mulung)$/i
-
-handler.cooldown = cooldown
-handler.disabled = false
-
+handler.cooldown = COOLDOWN_MS
 module.exports = handler
-
-function reward(user = {}) {
-	var rewards = {
-		reward: {
-			money: 201,
-			exp: 301,
-			trash: 101,
-			potion: 2,
-			rock: 2,
-			wood: 2,
-			string: 2,
-			common: 2 * (user.dog && (user.dog > 2 ? 2 : user.dog) * 1.2 || 1),
-			uncommon: [0, 0, 0, 1, 0].concat(
-				new Array(5 - (
-					(user.dog > 2 && user.dog < 6 && user.dog) || (user.dog > 5 && 5) || 2
-				)).fill(0)
-			),
-			mythic: [0, 0, 0, 0, 0, 1, 0, 0, 0].concat(
-				new Array(8 - (
-					(user.dog > 5 && user.dog < 8 && user.dog) || (user.dog > 7 && 8) || 3
-				)).fill(0)
-			),
-			legendary: [0, 0, 0, 0, 0, 0, 0, 1, 0, 0].concat(
-				new Array(10 - (
-					(user.dog > 8 && user.dog) || 4
-				)).fill(0)
-			),
-			iron: [0, 0, 0, 1, 0, 0],
-			gold: [0, 0, 0, 0, 0, 1, 0],
-			diamond: [0, 0, 0, 0, 0, 0, 1, 0].concat(
-				new Array(5 - (
-					(user.fox < 6 && user.fox) || (user.fox > 5 && 5) || 0
-				)).fill(0)
-			),
-		},
-		lost: {
-			health: 101 - user.cat * 4,
-			armordurability: (15 - user.armor) * 7
-		}
-	}
-	return rewards
-}

@@ -1,107 +1,61 @@
-var confirm = {}
+const pending = new Map()
+const MIN_BET = 1000
+const MAX_BET = 100000
+const CONFIRM_TIMEOUT_MS = 60_000
 
-async function handler(m, {
-	conn,
-	args
-}) {
-	//if (!isROwner) throw 'Dalam perbaikan'
-	if (m.sender in confirm) throw 'Kamu masih melakukan judi, tunggu sampai selesai!!'
-	try {
-		var user = db.data.users[m.sender]
-		if (!args[0]) return m.reply('brani taruhan brapa?')
-		if (args[0] < 1000 || args > 100000) return m.reply('minimal 1000, max 100000 buat taruhan')
-		var count = (args[0] && number(parseInt(args[0])) ? Math.max(parseInt(args[0]), 1) : /all/i.test(args[0]) ? Math.floor(parseInt(user.money)) : 1) * 1
-		if ((user.money * 1) < count) return m.reply('💵Uang kamu tidak cukup!!')
-		if (!(m.sender in confirm)) {
-			confirm[m.sender] = {
-				sender: m.sender,
-				count,
-				timeout: setTimeout(() => (m.reply('timed out'), delete confirm[m.sender]), 60000)
-			}
-			var txt = '⚠️Warning⚠️\n*Jangan judi karena tidak akan menang, BENERAN!!*\nApakah anda yakin (pikirkan baik-baik) mau melakukan judi (Y/n) (60s Timeout)'
-			return conn.sendButton(m.chat, txt, author, null, [
-				['y'],
-				['n']
-			], m)
-		}
-	} catch (e) {
-		console.error(e)
-		if (m.sender in confirm) {
-			var {
-				timeout
-			} = confirm[m.sender]
-			clearTimeout(timeout)
-			delete confirm[m.sender]
-			m.reply('Rejected')
-		}
-	}
+const handler = async (m, { conn, args = [] }) => {
+	const user = global.db?.data?.users?.[m.sender]
+	if (!user) return m.reply('Data pemain belum tersedia.')
+	if (pending.has(m.sender)) return m.reply('Kamu masih memiliki taruhan yang menunggu konfirmasi.')
+	const amountText = String(args[0] || '')
+	const amount = /^all$/i.test(amountText) ? Math.floor(Number(user.money) || 0) : /^\d+$/.test(amountText) ? Number(amountText) : NaN
+	if (!Number.isSafeInteger(amount) || amount < MIN_BET || amount > MAX_BET) return m.reply(`Jumlah taruhan harus antara ${MIN_BET} dan ${MAX_BET} money, atau gunakan *all* jika saldo masih dalam batas.`)
+	if ((Number(user.money) || 0) < amount) return m.reply('Money kamu tidak cukup untuk taruhan tersebut.')
+
+	const entry = { amount, chat: m.chat, timeout: null }
+	entry.timeout = setTimeout(() => {
+		if (pending.get(m.sender) !== entry) return
+		pending.delete(m.sender)
+		conn.reply(entry.chat, 'Konfirmasi taruhan kedaluwarsa; taruhan dibatalkan.', m).catch(() => {})
+	}, CONFIRM_TIMEOUT_MS)
+	pending.set(m.sender, entry)
+	return conn.sendButton(m.chat, `Taruhan sebesar *${amount} money*. Yakin bermain? Pilih ya atau tidak.`, global.author || '', null, [['Ya', 'ya'], ['Tidak', 'tidak']], m)
 }
 
-handler.before = async m => {
-	if (!(m.sender in confirm)) return
-	if (m.isBaileys) return
-	var {
-		timeout,
-		count
-	} = confirm[m.sender]
-	var user = db.data.users[m.sender]
-	var moneyDulu = user.money * 1
-	var txt = (m.msg && m.msg.selectedDisplayText ? m.msg.selectedDisplayText : m.text ? m.text : '').toLowerCase()
-	try {
-		if (/^y(es|a)?$/i.test(txt)) {
-			var Bot = (Math.floor(Math.random() * 80)) * 1
-			var Kamu = (Math.floor(Math.random() * 71)) * 1
-			var status = 'Kalah'
-			if (Bot < Kamu) {
-				user.money += count * 1
-				status = 'Menang'
-			} else if (Bot > Kamu) {
-				user.money -= count * 1
-			} else {
-				status = 'Seri'
-				user.money += (Math.floor(count / 1.5)) * 1
-			}
-			m.reply(`
-Bot roll: *${Bot}*
-Kamu roll: *${Kamu}*
-
-Kamu *${status}*, kamu ${status == 'Menang' ? `Mendapatkan *+${count * 2}*` : status == 'Kalah' ? `Kehilangan *-${count * 1}*` : `Mendapatkan *+${Math.floor(count / 1.5)}*`} 💵Money
-    `.trim())
-			clearTimeout(timeout)
-			delete confirm[m.sender]
-			return !0
-		} else if (/^no?$/i.test(txt)) {
-			clearTimeout(timeout)
-			delete confirm[m.sender]
-			m.reply('Rejected')
-			return !0
-		}
-
-	} catch (e) {
-		clearTimeout(timeout)
-		delete confirm[m.sender]
-		if (moneyDulu > (user.money * 1)) user.money = moneyDulu * 1
-		m.reply('Error saat melakukan judi (Rejected)')
-		return !0
-	} finally {
-		clearTimeout(timeout)
-		delete confirm[m.sender]
-		return !0
+handler.before = async function (m) {
+	const entry = pending.get(m.sender)
+	if (!entry || m.isBaileys || typeof m.text !== 'string') return false
+	const answer = (m.msg?.selectedDisplayText || m.text).trim().toLowerCase()
+	if (!/^(y|yes|ya|n|no|tidak|batal)$/i.test(answer)) return false
+	clearTimeout(entry.timeout)
+	pending.delete(m.sender)
+	if (/^(n|no|tidak|batal)$/i.test(answer)) {
+		await m.reply('Taruhan dibatalkan; saldo tidak berubah.')
+		return true
 	}
+	const user = global.db?.data?.users?.[m.sender]
+	if (!user || (Number(user.money) || 0) < entry.amount) {
+		await m.reply('Saldo tidak cukup lagi. Taruhan dibatalkan.')
+		return true
+	}
+
+	const player = Math.floor(Math.random() * 71)
+	const bot = Math.floor(Math.random() * 80)
+	let result
+	if (player > bot) {
+		user.money = (Number(user.money) || 0) + entry.amount
+		result = `MENANG! Hadiah bersih +${entry.amount} money.`
+	} else if (player < bot) {
+		user.money = Math.max(0, (Number(user.money) || 0) - entry.amount)
+		result = `KALAH! Money berkurang ${entry.amount}.`
+	} else {
+		result = 'SERI! Saldo tidak berubah.'
+	}
+	await this.reply(entry.chat, `Bot roll: *${bot}*\nKamu roll: *${player}*\n\n${result}`, m)
+	return true
 }
 
-handler.help = ['judi *jumlah*']
+handler.help = ['bet <jumlah|all>']
 handler.tags = ['rpg']
-handler.command = /^(judi|bet)$/i
-
+handler.command = /^bet$/i
 module.exports = handler
-
-/**
- * Detect if thats number
- * @param {Number} x 
- * @returns Boolean
- */
-function number(x = 0) {
-	x = parseInt(x)
-	return !isNaN(x) && typeof x == 'number'
-}

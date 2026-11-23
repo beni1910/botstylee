@@ -1,242 +1,40 @@
-var handler = async (m, {
-	command,
-	usedPrefix,
-	DevMode,
-	args
-}) => {
-	var type = (args[0] || '').toLowerCase()
-	var msk = (args[0] || '').toLowerCase()
-	var user = db.data.users[m.sender]
-	var author = global.author
-	var cok = `
-▧ ayambakar 🍖
-〉 Need 2 ayam 🐓 & 1 Coal 🕳️
-▧ ayamgoreng 🍗
- 〉 Need 2 ayam 🐓 & 1 Coal 🕳️
-▧ oporayam 🍜
- 〉 Need 2 ayam 🐓 & 1 Coal 🕳️
-▧ steak 🥩
- 〉 Need 2 sapi 🐮 & 1 Coal 🕳️
-▧ rendang 🥘
- 〉 Need 2 sapi 🐮 & 1 Coal 🕳️
-▧ gulaiayam 🍲
- 〉 Need 2 ayam 🐓 & 1 Coal 🕳️
-▧ babipanggang 🥠
- 〉 Need 2 babi 🐖 & 1 Coal 🕳️
-▧ Gado Gado 🥗
- 〉 Need 2 bayam🍃 , 2 kubis 🥬 & 1 Coal 🕳️
-▧ Jagung Bakar 🌽
- 〉 Need 2 jagung 🌽 & 1 Coal 🕳️
-▧ Kentang Goreng 🍟
- 〉 Need 2 kentang 🥔 & 1 Coal 🕳️
-▧ Sup Labu 🥣
- 〉 Need 2 labu 🎃 & 1 Coal 🕳️
-▧ Tumis Kangkung 🥗
- 〉 Need 2 kangkung 🥦 & 1 Coal 🕳️
-▧ Pop Corn🍿
- 〉 Need 2 jagung 🌽 & 1 Coal 🕳️
-`
+const RECIPES = {
+	ayambakar: { ingredients: { ayam: 2, coal: 1 }, output: 'ayambakar', label: 'Ayam Bakar' },
+	ayamgoreng: { ingredients: { ayam: 2, coal: 1 }, output: 'ayamgoreng', label: 'Ayam Goreng' },
+	oporayam: { ingredients: { ayam: 2, coal: 1 }, output: 'oporayam', label: 'Opor Ayam' },
+	gulaiayam: { ingredients: { ayam: 2, coal: 1 }, output: 'gulai', label: 'Gulai Ayam' },
+	gulai: { ingredients: { ayam: 2, coal: 1 }, output: 'gulai', label: 'Gulai Ayam' },
+	steak: { ingredients: { sapi: 2, coal: 1 }, output: 'steak', label: 'Steak' },
+	rendang: { ingredients: { sapi: 2, coal: 1 }, output: 'rendang', label: 'Rendang' },
+	babipanggang: { ingredients: { babi: 2, coal: 1 }, output: 'babipanggang', label: 'Babi Panggang' },
+	gadogado: { ingredients: { bayam: 2, kubis: 2, coal: 1 }, output: 'gadogado', label: 'Gado-gado' },
+	jagungbakar: { ingredients: { jagung: 2, coal: 1 }, output: 'jagungbakar', label: 'Jagung Bakar' },
+	popcorn: { ingredients: { jagung: 2, coal: 1 }, output: 'popcorn', label: 'Pop Corn' },
+	kentanggoreng: { ingredients: { kentang: 2, coal: 1 }, output: 'kentanggoreng', label: 'Kentang Goreng' },
+	suplabu: { ingredients: { labu: 2, coal: 1 }, output: 'suplabu', label: 'Sup Labu' },
+	tumiskangkung: { ingredients: { kangkung: 2, coal: 1 }, output: 'tumiskangkung', label: 'Tumis Kangkung' }
+}
+const listRecipes = () => Object.entries(RECIPES).filter(([name]) => name !== 'gulai').map(([name, recipe]) => `• ${name}: ${Object.entries(recipe.ingredients).map(([item, amount]) => `${amount} ${item}`).join(', ')}`).join('\n')
 
-	try {
-		if (/masak|cook/i.test(command)) {
-			var count = args[1] && args[1].length > 0 ? Math.min(5, Math.max(parseInt(args[1]), 1)) : !args[1] || args.length < 3 ? 1 : Math.min(1, count)
-			switch (type) {
-				case 'ayambakar':
-					if (user.ayam < count * 2 || user.coal < 1 * count) {
-						user.ayam >= count * 1
-						user.ayam -= count * 2
-						user.coal -= count * 1
-						user.ayambakar += count * 1
-						conn.reply(m.chat, `Sukses memasak ${count} ayam bakar🍖`, m)
-					} else conn.reply(m.chat, `Anda tidak memiliki bahan untuk memasak ayam bakar\nAnda butuh 2 ayam dan 1 coal untuk memasak`, m)
-					break
-				case 'gulaiayam':
-					if (user.ayam < count * 2 || user.coal < 1 * count) {
-						user.ayam >= count * 1
-						user.ayam -= count * 2
-						user.coal -= count * 1
-						user.gulai += count * 1
-						conn.reply(m.chat, `Sukses memasak ${ count } Gulai Ayam🍜`, m)
-					} else conn.reply(m.chat, `Anda tidak memiliki bahan untuk memasak gulai ayam\nAnda butuh 2 ayam dan 1 coal untuk memasak`, m)
-					break
-				case 'rendang':
-					if (user.sapi < count * 2 || user.coal < 1 * count) {
-						user.sapi >= count * 1
-						user.sapi -= count * 2
-						user.coal -= count * 1
-						user.rendang += count * 1
-						conn.reply(m.chat, `Sukses memasak ${ count } Rendang 🍜`, m)
-					} else conn.reply(m.chat, `Anda tidak memiliki bahan untuk memasak dimasak rendang\nAnda butuh 2 sapi dan 1 coal untuk memasak`, m)
-					break
-				case 'ayamgoreng':
-					if (user.ayam < count * 2 || user.coal < 1 * count) {
-						user.ayam >= count * 1
-						user.ayam -= count * 2
-						user.coal -= count * 1
-						user.ayamgoreng += count * 1
-						conn.reply(m.chat, `Sukses memasak ${ count } ayam goreng🍗`, m)
-					} else conn.reply(m.chat, `Anda tidak memiliki bahan untuk memasak ayam goreng\nAnda butuh 2 ayam dan 1 coal untuk memasak`, m)
-					break
-				case 'oporayam':
-					if (user.lele < count * 2 || user.coal < 1 * count) {
-						user.lele >= count * 1
-						user.lele -= count * 2
-						user.coal -= count * 1
-						user.oporayam += count * 1
-						conn.reply(m.chat, `Sukses memasak ${ count } opor ayam`, m)
-					} else conn.reply(m.chat, `Anda tidak memiliki bahan untuk memasak opor ayam\nAnda butuh 2 ayam dan 1 coal untuk memasak`, m)
-					break
-				case 'steak':
-					if (user.sapi < count * 2 || user.coal < 1 * count) {
-						user.sapi >= count * 1
-						user.sapi -= count * 2
-						user.coal -= count * 1
-						user.steak += count * 1
-						conn.reply(m.chat, `Sukses memasak ${ count } Steak`, m)
-					} else conn.reply(m.chat, `Anda tidak memiliki bahan untuk memasak steak\nAnda butuh 2 sapi dan 1 coal untuk memasak`, m)
-					break
-				case 'babipanggang':
-					if (user.babi < count * 2 || user.coal < 1 * count) {
-						user.babi >= count * 1
-						user.babi -= count * 2
-						user.coal -= count * 1
-						user.babipanggang += count * 1
-						conn.reply(m.chat, `Sukses memasak ${ count } babi panggang`, m)
-					} else conn.reply(m.chat, `Anda tidak memiliki bahan untuk memasak babi panggang\nAnda butuh 2 babi dan 1 coal untuk memasak`, m)
-					break
-				case 'jagungbakar':
-					if (user.jagung < count * 2 || user.coal < 1 * count) {
-						user.jagung >= count * 1
-						user.jagung -= count * 2
-						user.coal -= count * 1
-						user.jagungbakar += count * 1
-						conn.reply(m.chat, `Sukses memasak ${count} jagung bakar🌽`, m)
-					} else conn.reply(m.chat, `Anda tidak memiliki bahan untuk memasak jagung bakar\nAnda butuh 2 jagung dan 1 coal untuk memasak`, m)
-					break
-				case 'popcorn':
-					if (user.jagung < count * 2 || user.coal < 1 * count) {
-						user.jagung >= count * 1
-						user.jagung -= count * 2
-						user.coal -= count * 1
-						user.popcorn += count * 1
-						conn.reply(m.chat, `Sukses memasak ${count} jagung bakar🍿`, m)
-					} else conn.reply(m.chat, `Anda tidak memiliki bahan untuk memasak jagung bakar\nAnda butuh 2 jagung dan 1 coal untuk memasak`, m)
-					break
-				case 'kentanggoreng':
-					if (user.kentang < count * 2 || user.coal < 1 * count) {
-						user.kentang >= count * 1
-						user.kentang -= count * 2
-						user.coal -= count * 1
-						user.kentanggoreng += count * 1
-						conn.reply(m.chat, `Sukses memasak ${count} kentang goreng🍟`, m)
-					} else conn.reply(m.chat, `Anda tidak memiliki bahan untuk memasak kentang goreng\nAnda butuh 2 kentang dan 1 coal untuk memasak`, m)
-					break
-				case 'suplabu':
-					if (user.labu < count * 2 || user.coal < 1 * count) {
-						user.labu >= count * 1
-						user.labu -= count * 2
-						user.coal -= count * 1
-						user.suplabu += count * 1
-						conn.reply(m.chat, `Sukses memasak ${count} sup labu🥣`, m)
-					} else conn.reply(m.chat, `Anda tidak memiliki bahan untuk memasak sup labu\nAnda butuh 2 labu dan 1 coal untuk memasak`, m)
-					break
-				case 'tumiskangkung':
-					if (user.kangkung < count * 2 || user.coal < 1 * count) {
-						user.kangkung >= count * 1
-						user.kangkung -= count * 2
-						user.coal -= count * 1
-						user.tumiskangkung += count * 1
-						conn.reply(m.chat, `Sukses memasak ${count} tumis kangkung🥗`, m)
-					} else conn.reply(m.chat, `Anda tidak memiliki bahan untuk memasak tumis kangkung\nAnda butuh 2 kangkung dan 1 coal untuk memasak`, m)
-					break
-				case 'gadogado':
-					if (user.blabu < count * 2 || user.coal < 1 * count) {
-						user.blabu >= count * 1
-						user.blabu -= count * 2
-						user.coal -= count * 1
-						user.gadogado += count * 1
-						conn.reply(m.chat, `Sukses memasak ${count} gado gado🥗`, m)
-					} else conn.reply(m.chat, `Anda tidak memiliki bahan untuk memasak gado gado\nAnda butuh 2 blabu dan 1 coal untuk memasak`, m)
-					break
-				default:
-					await conn.sendMessage(m.chat, {
-						text: cok,
-						footer: author,
-						title: '「 *C O O K I N G* 」',
-						buttonText: "C O O K I N G",
-						sections: [{
-							title: "List Featured",
-							rows: [{
-								title: "Ayam Bakar 🍖",
-								rowId: ".cook ayambakar",
-								description: "Cooking Ayam Bakar"
-							}, {
-								title: "Ayam Goreng 🍗",
-								rowId: ".cook ayambakar",
-								description: "Cooking Ayam Goreng"
-							}, {
-								title: "Opor Ayam 🍜",
-								rowId: ".cook oporayam",
-								description: "Cooking Opor Ayam"
-							}, {
-								title: "Steak 🥩",
-								rowId: ".cook steak",
-								description: "Cooking Steak"
-							}, {
-								title: "Rendang 🥘",
-								rowId: ".cook rendang",
-								description: "Cooking Rendang"
-							}, {
-								title: "Gulai Ayam 🍲",
-								rowId: ".cook gulaiayam",
-								description: "Cooking Gulai Ayam"
-							}, {
-								title: "Babi Panggang 🥠",
-								rowId: ".cook babipanggang",
-								description: "Cooking Babi Panggang"
-							}, {
-								title: "Gado Gado🥗",
-								rowId: ".cook gadogado",
-								description: "Cooking Gado Gado"
-							}, {
-								title: "Kentang Goreng🍟",
-								rowId: ".cook kentanggoreng",
-								description: "Cooking Kentang Goreng"
-							}, {
-								title: "Pop Corn🍿",
-								rowId: ".cook popcorn",
-								description: "Cooking Pop Corn"
-							}, {
-								title: "Sup Labu 🥣",
-								rowId: ".cook suplabu",
-								description: "Cooking Sup Labu"
-							}, {
-								title: "Jagung Bakar🌽",
-								rowId: ".cook jagungbakar",
-								description: "Cooking Jagung Bakar"
-							}, {
-								title: "Tumis Kangkung 🥗",
-								rowId: ".cook tumiskangkung",
-								description: "Cooking Tumis Kangkung"
-							}]
-						}]
-					})
-			}
-		}
-	} catch (e) {
-		conn.reply(m.chat, `Sepertinya ada yg eror,coba laporin ke owner deh`, m)
-		console.log(e)
-		if (DevMode) {
-			for (var jid of global.owner.map(v => v.replace(/[^0-9]/g, '') + '@s.whatsapp.net').filter(v => v != conn.user.jid)) {
-				conn.sendMessage(jid, 'shop.js error\nNo: *' + m.sender.split`@` [0] + '*\nCommand: *' + m.text + '*\n\n*' + e + '*', MessageType.text)
-			}
-		}
-	}
+const handler = async (m, { conn, args = [], usedPrefix = '.', command = 'cook' }) => {
+	const user = global.db?.data?.users?.[m.sender]
+	if (!user) return m.reply('Data pemain belum tersedia.')
+	const recipeName = String(args[0] || '').toLowerCase()
+	if (!recipeName) return m.reply(`*Resep masakan*\n${listRecipes()}\n\nContoh: ${usedPrefix}${command} ayambakar 2`)
+	const recipe = RECIPES[recipeName]
+	if (!recipe) return m.reply(`Resep tidak dikenal.\n${listRecipes()}`)
+	const rawCount = args[1] == null ? 1 : Number(args[1])
+	if (!Number.isSafeInteger(rawCount) || rawCount < 1 || rawCount > 99) return m.reply('Jumlah masak harus bilangan bulat antara 1–99.')
+	const missing = Object.entries(recipe.ingredients).filter(([item, amount]) => (Number(user[item]) || 0) < amount * rawCount)
+	if (missing.length) return m.reply(`Bahan tidak cukup untuk memasak ${rawCount} ${recipe.label}.\nKurang: ${missing.map(([item, amount]) => `${Math.max(0, amount * rawCount - (Number(user[item]) || 0))} ${item}`).join(', ')}.`)
+
+	for (const [item, amount] of Object.entries(recipe.ingredients)) user[item] = (Number(user[item]) || 0) - amount * rawCount
+	user[recipe.output] = (Number(user[recipe.output]) || 0) + rawCount
+	return conn.reply(m.chat, `🍳 Berhasil memasak *${rawCount} ${recipe.label}*.\nBahan telah dikurangi dari inventory.`, m)
 }
 
-handler.help = ['masak <masakan> <args>', 'cook <masakan> <args>']
+handler.help = ['cook <masakan> [jumlah]', 'masak <masakan> [jumlah]']
 handler.tags = ['rpg']
 handler.register = true
 handler.command = /^(masak|cook)$/i
-var wm = global.botwm
 module.exports = handler
