@@ -20,11 +20,12 @@ handler.before = async function (m) {
 	if (quotedId !== questionId) return false
 
 	const answer = normalizeAnswer(m.text)
+	const usedPrefix = session[4] || '.'
 	if (/^(nyerah|menyerah|surrender)$/i.test(answer)) {
 		clearTimeout(session[3])
 		delete this.caklontong[m.chat]
 		await this.sendButton(m.chat, `Jawabannya: *${session[1].jawaban}*\n${session[1].deskripsi || ''}`, global.author || '', null, [
-			['Cak Lontong', '.caklontong']
+			['Cak Lontong', `${usedPrefix}caklontong`]
 		], m).catch(error => this.logger?.error?.({ err: error }, 'Gagal menutup soal Cak Lontong'))
 		return true
 	}
@@ -37,7 +38,7 @@ handler.before = async function (m) {
 		const user = db.data?.users?.[m.sender]
 		if (user) user.exp = (Number(user.exp) || 0) + (Number(session[2]) || 0)
 		await this.sendButton(m.chat, `*Benar!* +${Number(session[2]) || 0} XP\n${session[1].deskripsi || ''}`, global.author || '', null, [
-			['Cak Lontong', '.caklontong']
+			['Cak Lontong', `${usedPrefix}caklontong`]
 		], m)
 	} else if (typeof similarity === 'function' && similarity(answer, expected) >= THRESHOLD) {
 		await m.reply('*Dikit lagi!*')

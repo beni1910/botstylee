@@ -6,6 +6,7 @@ const handler = async (m, { usedPrefix = '.' }) => {
 	const id = m.chat
 	if (this.caklontong[id]) return this.reply(m.chat, 'Masih ada soal Cak Lontong yang belum terjawab di chat ini.', this.caklontong[id][0] || m)
 
+	let session
 	try {
 		const { caklontong } = await import('@bochilteam/scraper')
 		const data = await caklontong()
@@ -24,7 +25,8 @@ const handler = async (m, { usedPrefix = '.' }) => {
 			['Petunjuk', `${usedPrefix}calo`],
 			['Nyerah', 'nyerah']
 		], m)
-		const session = [questionMessage, data, POINTS, null]
+
+		session = [questionMessage, data, POINTS, null, usedPrefix]
 		this.caklontong[id] = session
 		session[3] = setTimeout(async () => {
 			if (this.caklontong?.[id] !== session) return
@@ -35,6 +37,7 @@ const handler = async (m, { usedPrefix = '.' }) => {
 		}, TIMEOUT_MS)
 		return questionMessage
 	} catch (error) {
+		if (session && this.caklontong[id] === session) delete this.caklontong[id]
 		this.logger?.error?.({ err: error, chat: m.chat }, 'Gagal memulai Cak Lontong')
 		return this.reply(m.chat, 'Soal Cak Lontong gagal dimulai. Coba lagi sebentar.', m)
 	}
