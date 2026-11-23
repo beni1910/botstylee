@@ -1,23 +1,18 @@
-var handler = async (m, {
-	conn,
-	text,
-	usedPrefix,
-	command
-}) => {
-	var who
-	if (m.isGroup) who = m.mentionedJid && m.mentionedJid[0] ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : false
-	else who = m.chat
-	var user = db.data.users[who]
-	if (!who) return m.reply(`Tag/Mention!\n\nContoh:\n${usedPrefix + command} @0`)
-	if (!user.premium) return m.reply("dia bukan member premium")
-	user.expired = 0
+const handler = async (m, { conn, usedPrefix = '.', command = 'delprem' }) => {
+	const target = m.mentionedJid?.[0] || m.quoted?.sender || (!m.isGroup ? m.chat : null)
+	if (!target) return m.reply(`Tag atau balas pesan pengguna yang akan dihapus status Premiumnya.\nContoh: ${usedPrefix}${command} @tag`)
+
+	const user = db.data?.users?.[target]
+	if (!user) return m.reply('Data pengguna tidak ditemukan di database.')
+	if (!user.premium && !(Number(user.expired) > 0)) return m.reply('Pengguna tersebut tidak memiliki status Premium.')
+
 	user.premium = false
-	m.reply(`Berhasil menghapus user dari member premium`)
+	user.expired = 0
+	return conn.reply(m.chat, `Status Premium @${target.split('@')[0]} berhasil dihapus.`, m, { mentions: [target] })
 }
-handler.help = ['delprem *@user*']
+
+handler.help = ['delprem @tag']
 handler.tags = ['owner', 'premium']
 handler.command = /^delprem$/i
-
 handler.owner = true
-
 export default handler
