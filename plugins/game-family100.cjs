@@ -8,6 +8,7 @@ async function handler(m, { usedPrefix = '.' }) {
 		return this.reply(m.chat, 'Masih ada kuis Family 100 yang belum selesai di chat ini.', this.game[id].msg || m)
 	}
 
+	let room
 	try {
 		const { family100 } = await import('@bochilteam/scraper')
 		const data = await family100()
@@ -20,7 +21,7 @@ async function handler(m, { usedPrefix = '.' }) {
 			.map(answer => answer.trim())
 		if (!answers.length) throw new Error('Soal tidak memiliki jawaban yang valid.')
 
-		const room = {
+		room = {
 			id,
 			soal: data.soal,
 			jawaban: answers,
@@ -55,6 +56,7 @@ async function handler(m, { usedPrefix = '.' }) {
 		}, TIMEOUT_MS)
 		return room.msg
 	} catch (error) {
+		if (room && this.game[id] === room) delete this.game[id]
 		this.logger?.error?.({ err: error, chat: m.chat }, 'Gagal memulai Family 100')
 		return this.reply(m.chat, 'Kuis Family 100 gagal dimulai. Coba lagi sebentar.', m)
 	}
